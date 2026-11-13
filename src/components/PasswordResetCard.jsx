@@ -3,7 +3,7 @@ import {
   verifyPasswordResetCode, 
   confirmPasswordReset 
 } from 'firebase/auth';
-import { auth } from '../firebase';
+import { auth, authDomain } from '../firebase';
 import PasswordStrengthMeter, { checkPasswordStrength } from './PasswordStrengthMeter';
 import { 
   Lock, 
@@ -27,11 +27,12 @@ export default function PasswordResetCard({ onStateChange }) {
   const [oobCode, setOobCode] = useState('');
   const [continueUrl, setContinueUrl] = useState('');
 
-  // Flow states: 'CHECKING' | 'READY' | 'SUBMITTING' | 'SUCCESS' | 'ERROR' | 'UNSUPPORTED' | 'NO_PARAMS'
+  // Flow states: 'CHECKING' | 'READY' | 'SUBMITTING' | 'SUCCESS' | 'ERROR' | 'REDIRECTING' | 'NO_PARAMS'
   const [flowState, setFlowState] = useState('CHECKING');
   const [accountEmail, setAccountEmail] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [errorCode, setErrorCode] = useState('');
+  const [redirectUrl, setRedirectUrl] = useState('');
 
   // Form fields
   const [newPassword, setNewPassword] = useState('');
@@ -66,9 +67,15 @@ export default function PasswordResetCard({ onStateChange }) {
         return;
       }
 
-      // Scenario 2: Other Firebase email actions (e.g., verifyEmail, recoverEmail)
+      // Scenario 2: verifyEmail, recoverEmail, or any non-password-reset actions
+      // Automatically redirect the user to Firebase's original default handler:
+      // https://<authDomain>/__/auth/action?mode=...&oobCode=...
+      // Preserving all original query parameters (oobCode, apiKey, mode, lang, continueUrl, etc.)
       if (urlMode && urlMode !== 'resetPassword') {
-        updateFlowState('UNSUPPORTED');
+        const defaultHandler = `https://${authDomain}/__/auth/action${window.location.search}`;
+        setRedirectUrl(defaultHandler);
+        updateFlowState('REDIRECTING');
+        window.location.replace(defaultHandler);
         return;
       }
 
@@ -462,30 +469,35 @@ export default function PasswordResetCard({ onStateChange }) {
           </div>
         )}
 
-        {/* ---------------- STATE: UNSUPPORTED ACTION ---------------- */}
-        {flowState === 'UNSUPPORTED' && (
-          <div className="relative z-10 py-2 text-center space-y-4 animate-fade-in">
-            <div className="w-13 h-13 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 mx-auto shadow-sm">
-              <Info className="w-7 h-7 text-blue-600" />
+        {/* ---------------- STATE: REDIRECTING (FOR VERIFYEMAIL, RECOVEREMAIL, ETC.) ---------------- */}
+        {flowState === 'REDIRECTING' && (
+          <div className="relative z-10 py-8 sm:py-10 flex flex-col items-center text-center space-y-3.5 animate-fade-in">
+            <div className="relative">
+              <div className="w-14 h-14 rounded-2xl overflow-hidden p-[1.5px] bg-gradient-to-tr from-sky-400 via-blue-500 to-indigo-500 shadow-sm relative">
+                <img src="/app-logo.png" alt="KCET App Logo" className="w-full h-full object-cover rounded-[14px] opacity-75" />
+                <div className="absolute inset-0 bg-white/70 backdrop-blur-[1px] flex items-center justify-center">
+                  <RefreshCw className="w-6 h-6 animate-spin text-blue-600" />
+                </div>
+              </div>
             </div>
 
-            <div className="space-y-1">
-              <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-                Email Action
+            <div className="space-y-1.5">
+              <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
+                Redirecting to Firebase
               </h2>
-              <p className="text-xs sm:text-sm text-slate-600 max-w-xs mx-auto">
-                This portal is dedicated to <strong>KCET App Password Resets</strong>.
+              <p className="text-xs sm:text-sm text-slate-500 max-w-xs">
+                Taking you to Firebase's official handler for <span className="font-semibold text-blue-600">{mode === 'verifyEmail' ? 'Email Verification' : mode === 'recoverEmail' ? 'Email Recovery' : mode || 'email action'}</span>...
               </p>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-left text-xs text-slate-600 space-y-1.5">
-              <p>
-                Mode: <span className="font-mono text-blue-700 font-semibold">{mode || 'other'}</span>
-              </p>
-              <p>
-                Please use the official KCET Android application to verify or manage your account.
-              </p>
-            </div>
+            {redirectUrl && (
+              <a
+                href={redirectUrl}
+                className="text-xs text-blue-600 hover:text-blue-700 underline font-medium pt-2"
+              >
+                Click here if not redirected automatically
+              </a>
+            )}
           </div>
         )}
 

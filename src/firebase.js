@@ -2,7 +2,7 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 
 // Firebase Configuration using Vite environment variables with fallback
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyCFYIawcvcSu4aDbx919KeP220SB1jspqQ",
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "kcet-app-c0457.firebaseapp.com",
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "kcet-app-c0457",
@@ -13,6 +13,9 @@ const firebaseConfig = {
 
 // Initialize Firebase modular app singleton
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+
+// Export authDomain directly for default Firebase action handlers
+export const authDomain = firebaseConfig.authDomain;
 
 // Initialize Firebase Authentication
 export const auth = getAuth(app);
