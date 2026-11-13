@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="50%" stop-color="#2563EB" />
+      <stop offset="100%" stop-color="#1D4ED8" />
+    </linearGradient>
+    <linearGradient id="innerGlow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.35" />
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.0" />
+    </linearGradient>
+  </defs>
+  <!-- Background Badge / Shield -->
+  <path d="M32 4L54 12V28C54 42.5 44.5 54.5 32 60C19.5 54.5 10 42.5 10 28V12L32 4Z" fill="url(#shieldGrad)" />
+  <path d="M32 6L52 13.5V28C52 41.2 43.4 52.3 32 57.5C20.6 52.3 12 41.2 12 28V13.5L32 6Z" fill="url(#innerGlow)" />
+  <!-- Academic / Lock Emblem -->
+  <!-- Mortarboard Cap -->
+  <path d="M32 18L46 25L32 32L18 25L32 18Z" fill="#FFFFFF" />
+  <path d="M23 29.5V36.5C23 39 27 41 32 41C37 41 41 39 41 36.5V29.5L32 34L23 29.5Z" fill="#F1F5F9" />
+  <path d="M44 26.5V34.5" stroke="#FDE047" stroke-width="2" stroke-linecap="round" />
+  <!-- Small key symbol inside -->
+  <circle cx="32" cy="46" r="3.5" stroke="#FFFFFF" stroke-width="2" fill="none" />
+  <path d="M32 49.5V53" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" />
+  <path d="M34 51.5H32" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" />
+</svg>
