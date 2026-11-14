@@ -37,7 +37,7 @@ const CONFIG_DOC                   = 'email_delivery';
 const RATE_LIMITS_COLLECTION       = 'rate_limits_verification';
 const MAX_VERIFICATIONS_PER_HOUR   = 5;
 const HOUR_MS                      = 60 * 60 * 1000;
-const EMAILJS_TIMEOUT_MS           = 15_000; // 15 s timeout
+const EMAILJS_TIMEOUT_MS           = 8_000; // 8 s timeout for snappy responses
 
 const GOOGLE_JWKS = jose.createRemoteJWKSet(
   new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com')
@@ -147,23 +147,30 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Invalid token: UID missing.' });
     }
 
-    // ── 2. Retrieve Firebase user record via Admin SDK ─────────────────────
+    // ── 2. Derive email & verified status from token or Admin SDK ───────
+    let userEmail = (tokenPayload.email || '').trim().toLowerCase();
+    let isAlreadyVerified = tokenPayload.email_verified === true;
+
     const auth = await getAdminAuth();
-    let userRecord;
-    try {
-      userRecord = await auth.getUser(uid);
-    } catch (userErr) {
-      console.error('[send-verification-email] getUser error:', userErr.message);
-      return res.status(404).json({ error: 'User account not found.' });
+
+    // If email is not in the token payload or not verified, check userRecord
+    if (!userEmail) {
+      try {
+        const userRecord = await auth.getUser(uid);
+        userEmail = (userRecord.email || '').trim().toLowerCase();
+        isAlreadyVerified = userRecord.emailVerified === true;
+      } catch (userErr) {
+        console.error('[send-verification-email] getUser error:', userErr.message);
+        return res.status(404).json({ error: 'User account not found.' });
+      }
     }
 
-    const userEmail = (userRecord.email || '').trim().toLowerCase();
     if (!userEmail) {
       return res.status(400).json({ error: 'User account has no associated email address.' });
     }
 
     // ── 3. Check if already email verified ─────────────────────────────────
-    if (userRecord.emailVerified === true) {
+    if (isAlreadyVerified) {
       return res.status(200).json({
         success: true,
         alreadyVerified: true,
@@ -173,7 +180,7 @@ export default async function handler(req, res) {
 
     const db = getAdminFirestore();
 
-    // ── 4. Rate limiting ───────────────────────────────────────────────────
+    // ── 4. Rate limiting & Config check (run concurrently) ─────────────────
     let emailHash;
     try {
       emailHash = hashEmail(userEmail);
@@ -181,7 +188,11 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Server configuration error.' });
     }
 
-    const withinLimit = await checkAndIncrementRateLimit(db, emailHash);
+    const [withinLimit, configDoc] = await Promise.all([
+      checkAndIncrementRateLimit(db, emailHash),
+      db.collection(CONFIG_COLLECTION).doc(CONFIG_DOC).get(),
+    ]);
+
     if (!withinLimit) {
       // Return success-looking message so attackers cannot probe rate limits
       return res.status(200).json({
@@ -191,7 +202,6 @@ export default async function handler(req, res) {
     }
 
     // ── 5. Check Firestore configuration (app_config/email_delivery) ───────
-    const configDoc = await db.collection(CONFIG_COLLECTION).doc(CONFIG_DOC).get();
     const configData = configDoc.exists ? configDoc.data() : {};
     const isCustomVerificationEnabled = configData.customVerificationEmailEnabled === true;
 
