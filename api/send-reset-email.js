@@ -389,7 +389,4 @@ export default async function handler(req, res) {
       debugReason:       `Unexpected error: ${unexpectedErr.message}`,
     });
   }
-      message:           'Please use the default password reset service.',
-    });
-  }
 }
