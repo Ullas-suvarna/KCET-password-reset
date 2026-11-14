@@ -193,6 +193,7 @@ export default async function handler(req, res) {
         fallbackToFirebase: true,
         provider:          'firebase',
         message:           'Please use the default password reset service.',
+        debugReason:       'config.customEmailEnabled is false in Firestore',
       });
     }
 
@@ -214,6 +215,7 @@ export default async function handler(req, res) {
         fallbackToFirebase: true,
         provider:          'firebase',
         message:           'Please use the default password reset service.',
+        debugReason:       `Missing env vars: service=${Boolean(emailjsServiceId)} template=${Boolean(emailjsTemplateId)} pub=${Boolean(emailjsPublicKey)} priv=${Boolean(emailjsPrivateKey)}`,
       });
     }
 
@@ -224,6 +226,7 @@ export default async function handler(req, res) {
     try {
       firebaseResetLink = await auth.generatePasswordResetLink(normalizedEmail);
     } catch (firebaseErr) {
+      console.error('[send-reset-email] Firebase error:', firebaseErr);
       const code = firebaseErr.code || '';
 
       if (code === 'auth/user-not-found' || code === 'auth/invalid-email') {
@@ -240,6 +243,7 @@ export default async function handler(req, res) {
         fallbackToFirebase: true,
         provider:          'firebase',
         message:           'Please use the default password reset service.',
+        debugReason:       `Firebase generatePasswordResetLink error: ${firebaseErr.message}`,
       });
     }
 
@@ -366,18 +370,25 @@ export default async function handler(req, res) {
     // Any other EmailJS error (temporary / auth / server error):
     // Do NOT update Firestore — EmailJS remains active for future requests.
     // Return fallback for this individual request only.
+    console.error('[send-reset-email] EmailJS non-OK response:', emailjsResponse.status, responseText);
     return res.status(200).json({
       success:           false,
       fallbackToFirebase: true,
       provider:          'firebase',
       message:           'Please use the default password reset service.',
+      debugReason:       `EmailJS responded status ${emailjsResponse.status}: ${responseText}`,
     });
   } catch (unexpectedErr) {
+    console.error('[send-reset-email] Unexpected error:', unexpectedErr);
     // Last-resort catch — prevents 500 stack traces leaking to clients
     return res.status(200).json({
       success:           false,
       fallbackToFirebase: true,
       provider:          'firebase',
+      message:           'Please use the default password reset service.',
+      debugReason:       `Unexpected error: ${unexpectedErr.message}`,
+    });
+  }
       message:           'Please use the default password reset service.',
     });
   }
