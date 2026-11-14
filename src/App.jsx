@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import PasswordResetCard from './components/PasswordResetCard';
 import Footer from './components/Footer';
@@ -8,7 +9,9 @@ export default function App() {
   const [currentFlowState, setCurrentFlowState] = useState('READY');
   const isFormPage = currentFlowState === 'READY' || currentFlowState === 'SUBMITTING';
 
-  return (
+  // The full page layout — shared between / and /reset-password routes.
+  // All existing JSX is preserved exactly as-is.
+  const pageLayout = (
     <div className="min-h-[100dvh] flex flex-col justify-between bg-[#F8FAFC] text-slate-800 relative selection:bg-blue-600 selection:text-white overflow-x-hidden">
       
       {/* 1. Ambient Background Glows */}
@@ -59,4 +62,14 @@ export default function App() {
       <Footer />
     </div>
   );
+
+  return (
+    <Routes>
+      {/* Root route: shows NO_PARAMS landing when visited without query params */}
+      <Route path="/" element={pageLayout} />
+      {/* Reset-password route: handles ?mode=resetPassword&oobCode=... links */}
+      <Route path="/reset-password" element={pageLayout} />
+    </Routes>
+  );
 }
+
