@@ -1,16 +1,22 @@
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
+  const results = {};
+  
   try {
-    const admin = await import('firebase-admin');
-    const firestore = await import('firebase-admin/firestore');
-    res.status(200).json({
-      ok: true,
-      hasAdmin: Boolean(admin),
-      hasFieldValue: Boolean(firestore.FieldValue),
-      envVarSet: Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_JSON),
-      adminEmailsSet: Boolean(process.env.ADMIN_EMAILS)
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message, stack: err.stack });
-  }
+    results.appImport = await import('firebase-admin/app').then(() => 'OK').catch(e => e.message);
+  } catch (e) { results.appImport = e.message; }
+
+  try {
+    results.authImport = await import('firebase-admin/auth').then(() => 'OK').catch(e => e.message);
+  } catch (e) { results.authImport = e.message; }
+
+  try {
+    results.firestoreImport = await import('firebase-admin/firestore').then(() => 'OK').catch(e => e.message);
+  } catch (e) { results.firestoreImport = e.message; }
+
+  try {
+    results.libImport = await import('../lib/firebase-admin.js').then(() => 'OK').catch(e => e.message);
+  } catch (e) { results.libImport = e.message; }
+
+  res.status(200).json(results);
 }
