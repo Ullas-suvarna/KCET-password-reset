@@ -193,7 +193,6 @@ export default async function handler(req, res) {
         fallbackToFirebase: true,
         provider:          'firebase',
         message:           'Please use the default password reset service.',
-        debugReason:       'config.customEmailEnabled is false in Firestore',
       });
     }
 
@@ -215,7 +214,6 @@ export default async function handler(req, res) {
         fallbackToFirebase: true,
         provider:          'firebase',
         message:           'Please use the default password reset service.',
-        debugReason:       `Missing env vars: service=${Boolean(emailjsServiceId)} template=${Boolean(emailjsTemplateId)} pub=${Boolean(emailjsPublicKey)} priv=${Boolean(emailjsPrivateKey)}`,
       });
     }
 
@@ -243,7 +241,6 @@ export default async function handler(req, res) {
         fallbackToFirebase: true,
         provider:          'firebase',
         message:           'Please use the default password reset service.',
-        debugReason:       `Firebase generatePasswordResetLink error: ${firebaseErr.message}`,
       });
     }
 
@@ -376,7 +373,6 @@ export default async function handler(req, res) {
       fallbackToFirebase: true,
       provider:          'firebase',
       message:           'Please use the default password reset service.',
-      debugReason:       `EmailJS responded status ${emailjsResponse.status}: ${responseText}`,
     });
   } catch (unexpectedErr) {
     console.error('[send-reset-email] Unexpected error:', unexpectedErr);
@@ -386,7 +382,6 @@ export default async function handler(req, res) {
       fallbackToFirebase: true,
       provider:          'firebase',
       message:           'Please use the default password reset service.',
-      debugReason:       `Unexpected error: ${unexpectedErr.message}`,
     });
   }
 }
