@@ -21,13 +21,19 @@
  *           ADMIN_EMAILS is never returned in any response.
  */
 
-import { getAdminAuth, getAdminFirestore } from '../../lib/firebase-admin.js';
+import * as jose from 'jose';
+import { getAdminFirestore } from '../../lib/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 
+const PROJECT_ID        = process.env.VITE_FIREBASE_PROJECT_ID || 'kcet-app-c0457';
 const CONFIG_COLLECTION = 'app_config';
 const CONFIG_DOC        = 'email_delivery';
+
+const GOOGLE_JWKS = jose.createRemoteJWKSet(
+  new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com')
+);
 
 // ─── Admin Authorisation ───────────────────────────────────────────────────
 
@@ -50,12 +56,12 @@ function getAdminEmailSet() {
  *
  * Steps:
  *  1. Extract the Bearer token from the Authorization header.
- *  2. Verify the Firebase ID token using the Admin SDK.
+ *  2. Cryptographically verify the Firebase ID token using Google's public JWKS.
  *  3. Confirm that email_verified is true on the decoded token.
  *  4. Compare the token email against the server-side ADMIN_EMAILS allowlist.
  *
  * @param {import('http').IncomingMessage} req
- * @returns {Promise<import('firebase-admin/auth').DecodedIdToken>}
+ * @returns {Promise<any>}
  * @throws {{ status: number, message: string }}
  */
 async function requireAdmin(req) {
@@ -70,12 +76,16 @@ async function requireAdmin(req) {
     throw { status: 401, message: 'Authorisation required.' };
   }
 
-  // Verify token signature, expiry, and audience with Firebase Admin SDK.
+  // Cryptographically verify Firebase ID token using Google's JWKS
   let decoded;
   try {
-    decoded = await getAdminAuth().verifyIdToken(idToken, true); // checkRevoked = true
-  } catch {
-    // Do not leak the specific Firebase error to the caller.
+    const { payload } = await jose.jwtVerify(idToken, GOOGLE_JWKS, {
+      issuer: `https://securetoken.google.com/${PROJECT_ID}`,
+      audience: PROJECT_ID,
+    });
+    decoded = payload;
+  } catch (jwtErr) {
+    console.error('[requireAdmin] JWT verify error:', jwtErr.message);
     throw { status: 401, message: 'Invalid or expired session. Please sign in again.' };
   }
 
@@ -87,7 +97,6 @@ async function requireAdmin(req) {
   // Compare against the server-side allowlist — the caller never supplies the email.
   const adminEmails = getAdminEmailSet();
   if (adminEmails.size === 0) {
-    // ADMIN_EMAILS is not configured — deny all admin access.
     throw { status: 403, message: 'Access denied.' };
   }
 
@@ -212,5 +221,4 @@ export default async function handler(req, res) {
     console.error('[email-settings FATAL]:', fatal);
     return res.status(500).json({ error: `Fatal function error: ${fatal.message}` });
   }
-}
 }

@@ -218,7 +218,7 @@ export default async function handler(req, res) {
     }
 
     // ── 6. Generate genuine Firebase password-reset link ──────────────────
-    const auth = getAdminAuth();
+    const auth = await getAdminAuth();
     let firebaseResetLink;
 
     try {
