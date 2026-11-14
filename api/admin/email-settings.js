@@ -106,6 +106,15 @@ export default async function handler(req, res) {
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('X-Content-Type-Options', 'nosniff');
 
+  // ── CORS preflight — browsers send OPTIONS before GET/POST ───────────────
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+
   // ── GET — read current email provider configuration ─────────────────────
   if (req.method === 'GET') {
     try {
@@ -114,27 +123,32 @@ export default async function handler(req, res) {
       return res.status(err.status || 401).json({ error: err.message });
     }
 
-    const db  = getAdminFirestore();
-    const doc = await db.collection(CONFIG_COLLECTION).doc(CONFIG_DOC).get();
+    try {
+      const db  = getAdminFirestore();
+      const doc = await db.collection(CONFIG_COLLECTION).doc(CONFIG_DOC).get();
 
-    if (!doc.exists) {
-      // Document not yet initialised — return safe defaults.
+      if (!doc.exists) {
+        // Document not yet initialised — return safe defaults.
+        return res.status(200).json({
+          activeProvider:     'firebase',
+          customEmailEnabled: false,
+          lastFailureReason:  '',
+          updatedAt:          null,
+        });
+      }
+
+      const data = doc.data();
       return res.status(200).json({
-        activeProvider:     'firebase',
-        customEmailEnabled: false,
-        lastFailureReason:  '',
-        updatedAt:          null,
+        activeProvider:     data.activeProvider     || 'firebase',
+        customEmailEnabled: data.customEmailEnabled === true,
+        lastFailureReason:  data.lastFailureReason  || '',
+        updatedAt:
+          data.updatedAt ? data.updatedAt.toDate().toISOString() : null,
       });
+    } catch (err) {
+      console.error('[email-settings GET] Firestore error:', err.message);
+      return res.status(500).json({ error: 'Server configuration error. Check Vercel environment variables.' });
     }
-
-    const data = doc.data();
-    return res.status(200).json({
-      activeProvider:     data.activeProvider     || 'firebase',
-      customEmailEnabled: data.customEmailEnabled === true,
-      lastFailureReason:  data.lastFailureReason  || '',
-      updatedAt:
-        data.updatedAt ? data.updatedAt.toDate().toISOString() : null,
-    });
   }
 
   // ── POST — update email provider configuration ───────────────────────────
@@ -153,37 +167,42 @@ export default async function handler(req, res) {
       });
     }
 
-    const db = getAdminFirestore();
-    const ref = db.collection(CONFIG_COLLECTION).doc(CONFIG_DOC);
+    try {
+      const db = getAdminFirestore();
+      const ref = db.collection(CONFIG_COLLECTION).doc(CONFIG_DOC);
 
-    let updateData;
+      let updateData;
 
-    if (customEmailEnabled) {
-      // Administrator is manually re-enabling EmailJS.
-      // Reset the failure reason so the system starts fresh.
-      // If the quota is still exhausted, the next API call will disable it again.
-      updateData = {
-        activeProvider:     'emailjs',
-        customEmailEnabled: true,
-        lastFailureReason:  '',
-        updatedAt:          FieldValue.serverTimestamp(),
-      };
-    } else {
-      // Administrator is manually disabling EmailJS.
-      updateData = {
-        activeProvider:     'firebase',
-        customEmailEnabled: false,
-        updatedAt:          FieldValue.serverTimestamp(),
-      };
+      if (customEmailEnabled) {
+        // Administrator is manually re-enabling EmailJS.
+        // Reset the failure reason so the system starts fresh.
+        // If the quota is still exhausted, the next API call will disable it again.
+        updateData = {
+          activeProvider:     'emailjs',
+          customEmailEnabled: true,
+          lastFailureReason:  '',
+          updatedAt:          FieldValue.serverTimestamp(),
+        };
+      } else {
+        // Administrator is manually disabling EmailJS.
+        updateData = {
+          activeProvider:     'firebase',
+          customEmailEnabled: false,
+          updatedAt:          FieldValue.serverTimestamp(),
+        };
+      }
+
+      await ref.set(updateData, { merge: true });
+
+      return res.status(200).json({
+        success:            true,
+        activeProvider:     updateData.activeProvider,
+        customEmailEnabled: updateData.customEmailEnabled,
+      });
+    } catch (err) {
+      console.error('[email-settings POST] Firestore error:', err.message);
+      return res.status(500).json({ error: 'Server configuration error. Check Vercel environment variables.' });
     }
-
-    await ref.set(updateData, { merge: true });
-
-    return res.status(200).json({
-      success:            true,
-      activeProvider:     updateData.activeProvider,
-      customEmailEnabled: updateData.customEmailEnabled,
-    });
   }
 
   // ── Any other method ─────────────────────────────────────────────────────
