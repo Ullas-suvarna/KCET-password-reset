@@ -134,6 +134,13 @@ export default async function handler(req, res) {
       }
 
       try {
+        const isEmailjsConfigured = Boolean(
+          process.env.EMAILJS_SERVICE_ID &&
+          process.env.EMAILJS_TEMPLATE_ID &&
+          process.env.EMAILJS_PUBLIC_KEY &&
+          process.env.EMAILJS_PRIVATE_KEY
+        );
+
         const db  = getAdminFirestore();
         const doc = await db.collection(CONFIG_COLLECTION).doc(CONFIG_DOC).get();
 
@@ -142,6 +149,8 @@ export default async function handler(req, res) {
           return res.status(200).json({
             activeProvider:     'firebase',
             customEmailEnabled: false,
+            emailjsConfigured:  isEmailjsConfigured,
+            emailjsEnabled:     isEmailjsConfigured,
             lastFailureReason:  '',
             updatedAt:          null,
           });
@@ -151,6 +160,8 @@ export default async function handler(req, res) {
         return res.status(200).json({
           activeProvider:     data.activeProvider     || 'firebase',
           customEmailEnabled: data.customEmailEnabled === true,
+          emailjsConfigured:  isEmailjsConfigured,
+          emailjsEnabled:     isEmailjsConfigured,
           lastFailureReason:  data.lastFailureReason  || '',
           updatedAt:
             data.updatedAt ? data.updatedAt.toDate().toISOString() : null,
