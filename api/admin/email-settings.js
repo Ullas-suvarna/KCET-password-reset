@@ -147,22 +147,24 @@ export default async function handler(req, res) {
         if (!doc.exists) {
           // Document not yet initialised — return safe defaults.
           return res.status(200).json({
-            activeProvider:     'firebase',
-            customEmailEnabled: false,
-            emailjsConfigured:  isEmailjsConfigured,
-            emailjsEnabled:     isEmailjsConfigured,
-            lastFailureReason:  '',
-            updatedAt:          null,
+            activeProvider:                 'firebase',
+            customEmailEnabled:             false,
+            customVerificationEmailEnabled: false,
+            emailjsConfigured:              isEmailjsConfigured,
+            emailjsEnabled:                 isEmailjsConfigured,
+            lastFailureReason:              '',
+            updatedAt:                      null,
           });
         }
 
         const data = doc.data();
         return res.status(200).json({
-          activeProvider:     data.activeProvider     || 'firebase',
-          customEmailEnabled: data.customEmailEnabled === true,
-          emailjsConfigured:  isEmailjsConfigured,
-          emailjsEnabled:     isEmailjsConfigured,
-          lastFailureReason:  data.lastFailureReason  || '',
+          activeProvider:                 data.activeProvider     || 'firebase',
+          customEmailEnabled:             data.customEmailEnabled === true,
+          customVerificationEmailEnabled: data.customVerificationEmailEnabled === true,
+          emailjsConfigured:              isEmailjsConfigured,
+          emailjsEnabled:                 isEmailjsConfigured,
+          lastFailureReason:              data.lastFailureReason  || '',
           updatedAt:
             data.updatedAt ? data.updatedAt.toDate().toISOString() : null,
         });
@@ -180,11 +182,23 @@ export default async function handler(req, res) {
         return res.status(err.status || 401).json({ error: err.message });
       }
 
-      const { customEmailEnabled } = req.body || {};
+      const { customEmailEnabled, customVerificationEmailEnabled } = req.body || {};
 
-      if (typeof customEmailEnabled !== 'boolean') {
+      if (customEmailEnabled === undefined && customVerificationEmailEnabled === undefined) {
+        return res.status(400).json({
+          error: 'Either customEmailEnabled or customVerificationEmailEnabled must be provided.',
+        });
+      }
+
+      if (customEmailEnabled !== undefined && typeof customEmailEnabled !== 'boolean') {
         return res.status(400).json({
           error: 'customEmailEnabled must be a boolean (true or false).',
+        });
+      }
+
+      if (customVerificationEmailEnabled !== undefined && typeof customVerificationEmailEnabled !== 'boolean') {
+        return res.status(400).json({
+          error: 'customVerificationEmailEnabled must be a boolean (true or false).',
         });
       }
 
@@ -192,33 +206,34 @@ export default async function handler(req, res) {
         const db = getAdminFirestore();
         const ref = db.collection(CONFIG_COLLECTION).doc(CONFIG_DOC);
 
-        let updateData;
+        const updateData = {
+          updatedAt: FieldValue.serverTimestamp(),
+        };
 
-        if (customEmailEnabled) {
-          // Administrator is manually re-enabling EmailJS.
-          // Reset the failure reason so the system starts fresh.
-          // If the quota is still exhausted, the next API call will disable it again.
-          updateData = {
-            activeProvider:     'emailjs',
-            customEmailEnabled: true,
-            lastFailureReason:  '',
-            updatedAt:          FieldValue.serverTimestamp(),
-          };
-        } else {
-          // Administrator is manually disabling EmailJS.
-          updateData = {
-            activeProvider:     'firebase',
-            customEmailEnabled: false,
-            updatedAt:          FieldValue.serverTimestamp(),
-          };
+        if (customEmailEnabled !== undefined) {
+          updateData.customEmailEnabled = customEmailEnabled;
+          if (customEmailEnabled) {
+            updateData.activeProvider = 'emailjs';
+            updateData.lastFailureReason = '';
+          } else {
+            updateData.activeProvider = 'firebase';
+          }
+        }
+
+        if (customVerificationEmailEnabled !== undefined) {
+          updateData.customVerificationEmailEnabled = customVerificationEmailEnabled;
         }
 
         await ref.set(updateData, { merge: true });
 
+        const updatedDoc = await ref.get();
+        const updatedData = updatedDoc.data() || {};
+
         return res.status(200).json({
-          success:            true,
-          activeProvider:     updateData.activeProvider,
-          customEmailEnabled: updateData.customEmailEnabled,
+          success:                        true,
+          activeProvider:                 updatedData.activeProvider || 'firebase',
+          customEmailEnabled:             updatedData.customEmailEnabled === true,
+          customVerificationEmailEnabled: updatedData.customVerificationEmailEnabled === true,
         });
       } catch (err) {
         console.error('[email-settings POST] Firestore error:', err.message);
