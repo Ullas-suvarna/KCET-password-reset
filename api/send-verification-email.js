@@ -129,6 +129,17 @@ export default async function handler(req, res) {
     return res.status(204).end();
   }
 
+  // If a student clicks an action link in their email that points to this API URL via browser GET,
+  // gracefully redirect them directly to the frontend /verify-email page with all query parameters intact!
+  if (req.method === 'GET') {
+    const { oobCode, mode = 'verifyEmail', continueUrl } = req.query || {};
+    const targetUrl = new URL('/verify-email', APP_URL);
+    targetUrl.searchParams.set('mode', mode);
+    if (oobCode) targetUrl.searchParams.set('oobCode', oobCode);
+    if (continueUrl) targetUrl.searchParams.set('continueUrl', continueUrl);
+    return res.redirect(302, targetUrl.toString());
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed.' });
   }
@@ -285,6 +296,11 @@ export default async function handler(req, res) {
           template_params: {
             to_email:          userEmail,
             verification_link: verificationLink,
+            link:              verificationLink,
+            verify_link:       verificationLink,
+            reset_link:        verificationLink, // Handles cloned password-reset templates
+            oob_code:          oobCode,
+            oobCode:           oobCode,
           },
         }),
         signal: controller.signal,
